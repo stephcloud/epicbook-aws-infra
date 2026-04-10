@@ -1,0 +1,56 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  name: "SelfHostedPool"
+
+steps:
+  - checkout: self
+
+  # Install Terraform
+  - script: |
+      sudo apt-get update
+      sudo apt-get install -y unzip
+      curl -fsSL https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip -o terraform.zip
+      unzip terraform.zip
+      sudo mv terraform /usr/local/bin/
+      terraform -version
+    displayName: "Install Terraform"
+
+  # Terraform Init
+  - script: |
+      terraform init
+    displayName: "Terraform Init"
+
+  # Terraform Plan
+  - script: |
+      terraform plan -out=tfplan
+    displayName: "Terraform Plan"
+
+  # Terraform Apply
+  - script: |
+      terraform apply -auto-approve tfplan
+    displayName: "Terraform Apply"
+
+  # Generate infra-outputs.env dynamically
+  - script: |
+      echo "Generating infra-outputs.env..."
+
+      VM_IP=$(terraform output -raw vmPublicIp)
+      DB_HOST=$(terraform output -raw db_host)
+
+      echo "vmPublicIp=$VM_IP" > infra-outputs.env
+      echo "db_host=$DB_HOST" >> infra-outputs.env
+
+      echo "File content:"
+      cat infra-outputs.env
+    displayName: "Generate infra-outputs.env"
+
+  # Publish outputs for next pipeline
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: "infra-outputs.env"
+      artifactName: "infra-outputs"
+    displayName: "Publish outputs artifact"
