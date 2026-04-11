@@ -7,44 +7,111 @@ pool:
   name: SelfHostedPool
 
 stages:
-  - stage: deploy_stage
-    displayName: terraform stage
+  - stage: terraform_plan
+    displayName: Terraform Plan
 
     jobs:
-      - job: deploy_job
-        displayName: terraform job
+      - job: plan_job
+        displayName: Terraform Plan Job
 
         steps:
-          # Install Terraform
           - task: TerraformInstaller@1
-            displayName: terraform install
+            displayName: Install Terraform
             inputs:
-              terraformVersion: "latest"
+              terraformVersion: "1.9.8"
 
-          # Terraform Init
-          - task: TerraformTaskV4@4
-            displayName: terraform init
+          - task: AWSShellScript@1
+            displayName: Terraform Init and Plan
             inputs:
-              provider: "aws"
-              command: "init"
-              workingDirectory: "$(System.DefaultWorkingDirectory)"
-              environmentServiceNameAWS: "aws-connection"
+              awsCredentials: "aws-connection"
+              regionName: "us-east-1"
+              scriptType: "inline"
+              inlineScript: |
+                cd $(System.DefaultWorkingDirectory)
+                terraform init
+                terraform plan -out=tfplan \
+                  -var="db_password=$(TF_VAR_db_password)" \
+                  -var="db_username=$(TF_VAR_db_username)" \
+                  -var="instance_type=$(TF_VAR_instance_type)" \
+                  -var="region=$(TF_VAR_region)" \
+                  -var="vpc_cidr=$(TF_VAR_vpc_cidr)" \
+                  -var="public_subnet_cidr=$(TF_VAR_public_subnet_cidr)" \
+                  -var="private_subnet_1_cidr=$(TF_VAR_private_subnet_1_cidr)" \
+                  -var="private_subnet_2_cidr=$(TF_VAR_private_subnet_2_cidr)"
 
-          # Terraform Plan
-          - task: TerraformTaskV4@4
-            displayName: terraform plan
+          - task: PublishPipelineArtifact@1
+            displayName: Publish Plan Artifact
             inputs:
-              provider: "aws"
-              command: "plan"
-              workingDirectory: "$(System.DefaultWorkingDirectory)"
-              environmentServiceNameAWS: "aws-connection"
+              targetPath: "$(System.DefaultWorkingDirectory)/tfplan"
+              artifact: "tfplan"
 
-          # Terraform Apply
-          - task: TerraformTaskV4@4
-            displayName: terraform apply
-            inputs:
-              provider: "aws"
-              command: "apply"
-              workingDirectory: "$(System.DefaultWorkingDirectory)"
-              environmentServiceNameAWS: "aws-connection"
-              commandOptions: "-auto-approve"
+  - stage: terraform_apply
+    displayName: Terraform Apply
+    dependsOn: terraform_plan
+
+    jobs:
+      - deployment: apply_job
+        displayName: Terraform Apply Job
+        environment: "production"
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: TerraformInstaller@1
+                  displayName: Install Terraform
+                  inputs:
+                    terraformVersion: "1.9.8"
+
+                - task: AWSShellScript@1
+                  displayName: Terraform Apply
+                  inputs:
+                    awsCredentials: "aws-connection"
+                    regionName: "us-east-1"
+                    scriptType: "inline"
+                    inlineScript: |
+                      cd $(Pipeline.Workspace)/s
+                      terraform init
+                      terraform apply $(Pipeline.Workspace)/tfplan/tfplan
+
+                - task: AWSShellScript@1
+                  displayName: Terraform Outputs
+                  inputs:
+                    awsCredentials: "aws-connection"
+                    regionName: "us-east-1"
+                    scriptType: "inline"
+                    inlineScript: |
+                      cd $(Pipeline.Workspace)/s
+
+                      echo "============================================"
+                      echo "        INFRASTRUCTURE OUTPUTS"
+                      echo "============================================"
+
+                      EC2_IP=$(terraform output -raw ec2_public_ip)
+                      RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
+
+                      echo "EC2 Public IP   : $EC2_IP"
+                      echo "RDS Endpoint    : $RDS_ENDPOINT"
+                      echo "============================================"
+
+                      cat > $(Pipeline.Workspace)/s/inventory.ini << EOF
+                      [web]
+                      $EC2_IP
+
+                      [web:vars]
+                      ansible_user=ubuntu
+                      ansible_ssh_private_key_file=~/.ssh/epicbook-key.pem
+                      ansible_connection=ssh
+                      ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+                      ansible_python_interpreter=/usr/bin/python3
+                      rds_endpoint=$RDS_ENDPOINT
+                      EOF
+
+                      echo "Updated inventory.ini:"
+                      cat $(Pipeline.Workspace)/s/inventory.ini
+
+                - task: PublishPipelineArtifact@1
+                  displayName: Publish Updated Inventory
+                  inputs:
+                    targetPath: "$(Pipeline.Workspace)/s/inventory.ini"
+                    artifact: "inventory"
