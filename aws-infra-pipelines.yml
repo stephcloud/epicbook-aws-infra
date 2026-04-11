@@ -48,7 +48,7 @@ steps:
       export AWS_DEFAULT_REGION=$(aws_region)
       export TF_VAR_db_password="$(db_password)"
 
-      terraform plan -out=tfplan
+      terraform plan -refresh=false -out=tfplan
     displayName: 'Terraform Plan'
 
   # Terraform Apply
