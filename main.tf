@@ -96,25 +96,25 @@ resource "aws_security_group" "ec2_sg" {
 }
 
 # RDS SG
-# resource "aws_security_group" "rds_sg" {
-#   name   = "epicbook-rds-sg"
-#   vpc_id = aws_vpc.main.id
+resource "aws_security_group" "rds_sg" {
+  name   = "epicbook-rds-sg"
+  vpc_id = aws_vpc.main.id
 
-#   ingress {
-#     description     = "MySQL from EC2"
-#     from_port       = 3306
-#     to_port         = 3306
-#     protocol        = "tcp"
-#     security_groups = [aws_security_group.ec2_sg.id]
-#   }
+  ingress {
+    description     = "MySQL from EC2"
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ec2_sg.id]
+  }
 
-#   egress {
-#     from_port   = 0
-#     to_port     = 0
-#     protocol    = "-1"
-#     cidr_blocks = ["0.0.0.0/0"]
-#   }
-# }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
 
 # ---------------- EC2 INSTANCE ----------------
 resource "aws_instance" "app" {
@@ -144,22 +144,22 @@ resource "aws_db_subnet_group" "main" {
   }
 }
 
-# ---------------- RDS ----------------
-# resource "aws_db_instance" "mysql" {
-#   allocated_storage      = 20
-#   engine                 = "mysql"
-#   instance_class         = "db.t3.micro"
-#   db_name                = "bookstore"
-#   username               = var.db_username
-#   password               = var.db_password
+#---------------- RDS ----------------
+resource "aws_db_instance" "mysql" {
+  allocated_storage      = 20
+  engine                 = "mysql"
+  instance_class         = "db.t3.micro"
+  db_name                = "bookstore"
+  username               = var.db_username
+  password               = var.db_password
 
-#   db_subnet_group_name   = aws_db_subnet_group.main.name
-#   vpc_security_group_ids = [aws_security_group.rds_sg.id]
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  vpc_security_group_ids = [aws_security_group.rds_sg.id]
 
-#   publicly_accessible = false
-#   skip_final_snapshot = true
+  publicly_accessible = false
+  skip_final_snapshot = true
 
-#   tags = {
-#     Name = "epicbook-mysql"
-#   }
-# }
+  tags = {
+    Name = "epicbook-mysql"
+  }
+}
