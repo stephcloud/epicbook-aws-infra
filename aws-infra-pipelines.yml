@@ -30,14 +30,23 @@ stages:
                 cd $(System.DefaultWorkingDirectory)
                 terraform init
                 terraform plan -out=tfplan \
-                  -var="db_password=$(TF_VAR_db_password)" \
-                  -var="db_username=$(TF_VAR_db_username)" \
-                  -var="instance_type=$(TF_VAR_instance_type)" \
-                  -var="region=$(TF_VAR_region)" \
-                  -var="vpc_cidr=$(TF_VAR_vpc_cidr)" \
-                  -var="public_subnet_cidr=$(TF_VAR_public_subnet_cidr)" \
-                  -var="private_subnet_1_cidr=$(TF_VAR_private_subnet_1_cidr)" \
-                  -var="private_subnet_2_cidr=$(TF_VAR_private_subnet_2_cidr)"
+                  -var="db_password=$DB_PASSWORD" \
+                  -var="db_username=$DB_USERNAME" \
+                  -var="instance_type=$INSTANCE_TYPE" \
+                  -var="region=$REGION" \
+                  -var="vpc_cidr=$VPC_CIDR" \
+                  -var="public_subnet_cidr=$PUBLIC_SUBNET_CIDR" \
+                  -var="private_subnet_1_cidr=$PRIVATE_SUBNET_1_CIDR" \
+                  -var="private_subnet_2_cidr=$PRIVATE_SUBNET_2_CIDR"
+            env:
+              DB_PASSWORD: $(TF_VAR_db_password)
+              DB_USERNAME: $(TF_VAR_db_username)
+              INSTANCE_TYPE: $(TF_VAR_instance_type)
+              REGION: $(TF_VAR_region)
+              VPC_CIDR: $(TF_VAR_vpc_cidr)
+              PUBLIC_SUBNET_CIDR: $(TF_VAR_public_subnet_cidr)
+              PRIVATE_SUBNET_1_CIDR: $(TF_VAR_private_subnet_1_cidr)
+              PRIVATE_SUBNET_2_CIDR: $(TF_VAR_private_subnet_2_cidr)
 
           - task: PublishPipelineArtifact@1
             displayName: Publish Plan Artifact
